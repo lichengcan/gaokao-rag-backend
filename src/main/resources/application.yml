@@ -1,0 +1,25 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gaokao-rag-backend
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/gaokao_rag?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  mapper-locations: classpath*:mapper/**/*.xml
+
+dify:
+  base-url: ${DIFY_BASE_URL:https://api.dify.ai/v1}
+  api-key: ${DIFY_API_KEY:your-dify-api-key}
+  response-mode: ${DIFY_RESPONSE_MODE:blocking}
+  connect-timeout-ms: ${DIFY_CONNECT_TIMEOUT_MS:10000}
+  read-timeout-ms: ${DIFY_READ_TIMEOUT_MS:60000}
+
