@@ -6,6 +6,7 @@ import com.example.gaokao.dto.ChatResponse;
 import com.example.gaokao.service.ChatService;
 import com.example.gaokao.vo.ChatMessageVO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 
@@ -27,6 +29,11 @@ public class ChatController {
     @PostMapping("/send")
     public Result<ChatResponse> send(@RequestBody ChatRequest request) {
         return Result.success(chatService.send(request));
+    }
+
+    @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter stream(@RequestBody ChatRequest request) {
+        return chatService.stream(request);
     }
 
     @GetMapping("/history")

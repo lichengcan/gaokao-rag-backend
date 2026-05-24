@@ -18,7 +18,7 @@ mybatis-plus:
 
 dify:
   base-url: ${DIFY_BASE_URL:https://api.dify.ai/v1}
-  api-key: ${DIFY_API_KEY:your-dify-api-key}
+  api-key: app-zoZ8KUKCtRUI1ul3QEvIJtW0
   response-mode: ${DIFY_RESPONSE_MODE:blocking}
   connect-timeout-ms: ${DIFY_CONNECT_TIMEOUT_MS:10000}
   read-timeout-ms: ${DIFY_READ_TIMEOUT_MS:60000}

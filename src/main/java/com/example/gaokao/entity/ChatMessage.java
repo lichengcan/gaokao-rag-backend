@@ -17,6 +17,7 @@ public class ChatMessage {
     private String conversationId;
     private String question;
     private String answer;
+    private String referencesJson;
     private String messageSource;
     private Integer status;
     private LocalDateTime createTime;

@@ -21,7 +21,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DifyApiException.class)
     public Result<Void> handleDifyApiException(DifyApiException e) {
         log.error("Dify API call failed", e);
-        return Result.fail("AI 服务暂时不可用，请稍后重试。");
+        return Result.fail(e.getMessage());
     }
 
     @ExceptionHandler({DataAccessException.class})

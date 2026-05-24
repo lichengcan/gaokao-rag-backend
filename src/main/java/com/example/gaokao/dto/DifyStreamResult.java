@@ -7,10 +7,9 @@ import java.util.List;
 
 @Data
 @Builder
-public class ChatResponse {
+public class DifyStreamResult {
 
-    private String answer;
     private String conversationId;
-    private Long messageId;
+    private String messageId;
     private List<ChatReference> references;
 }
