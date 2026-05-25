@@ -34,10 +34,33 @@ public class DifyClient {
     private final DifyProperties difyProperties;
     private final ObjectMapper objectMapper;
 
-    public DifyChatResponse chat(String userId, String question, String conversationId) {
-        if (!StringUtils.hasText(difyProperties.getApiKey()) || "your-dify-api-key".equals(difyProperties.getApiKey())) {
-            throw new DifyApiException("Dify API key is not configured");
+    public void checkHealth() {
+        ensureConfigured();
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(difyProperties.getConnectTimeoutMs()))
+                .build();
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(Duration.ofMillis(Math.min(difyProperties.getReadTimeoutMs(), 10000)));
+
+        RestClient restClient = RestClient.builder()
+                .baseUrl(normalizeBaseUrl(difyProperties.getBaseUrl()))
+                .requestFactory(requestFactory)
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + difyProperties.getApiKey())
+                .build();
+
+        try {
+            restClient.get().uri("/parameters").retrieve().body(String.class);
+        } catch (Exception e) {
+            if (e instanceof RestClientResponseException restException) {
+                throw new DifyApiException(classifyDifyError(restException.getResponseBodyAsString()),
+                        extractDifyError(restException.getResponseBodyAsString()), e);
+            }
+            throw new DifyApiException("DIFY_UNAVAILABLE", "Dify 健康检查失败，请检查网络或服务配置。", e);
         }
+    }
+
+    public DifyChatResponse chat(String userId, String question, String conversationId) {
+        ensureConfigured();
 
         HttpClient httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(difyProperties.getConnectTimeoutMs()))
@@ -76,16 +99,15 @@ public class DifyClient {
                 throw (DifyApiException) e;
             }
             if (e instanceof RestClientResponseException restException) {
-                throw new DifyApiException(extractDifyError(restException.getResponseBodyAsString()), e);
+                throw new DifyApiException(classifyDifyError(restException.getResponseBodyAsString()),
+                        extractDifyError(restException.getResponseBodyAsString()), e);
             }
-            throw new DifyApiException("Failed to call Dify API", e);
+            throw new DifyApiException("DIFY_UNAVAILABLE", "Dify API 调用失败，请检查网络或服务配置。", e);
         }
     }
 
     public DifyStreamResult streamChat(String userId, String question, String conversationId, Consumer<String> answerConsumer) {
-        if (!StringUtils.hasText(difyProperties.getApiKey()) || "your-dify-api-key".equals(difyProperties.getApiKey())) {
-            throw new DifyApiException("Dify API key is not configured");
-        }
+        ensureConfigured();
 
         HttpClient httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(difyProperties.getConnectTimeoutMs()))
@@ -115,7 +137,7 @@ public class DifyClient {
                     .exchange((request, response) -> {
                         if (response.getStatusCode().isError()) {
                             String responseBody = new String(response.getBody().readAllBytes(), StandardCharsets.UTF_8);
-                            throw new DifyApiException(extractDifyError(responseBody));
+                            throw new DifyApiException(classifyDifyError(responseBody), extractDifyError(responseBody));
                         }
 
                         StreamState state = new StreamState();
@@ -147,9 +169,16 @@ public class DifyClient {
                 throw (DifyApiException) e;
             }
             if (e instanceof RestClientResponseException restException) {
-                throw new DifyApiException(extractDifyError(restException.getResponseBodyAsString()), e);
+                throw new DifyApiException(classifyDifyError(restException.getResponseBodyAsString()),
+                        extractDifyError(restException.getResponseBodyAsString()), e);
             }
-            throw new DifyApiException("Failed to call Dify streaming API", e);
+            throw new DifyApiException("DIFY_UNAVAILABLE", "Dify 流式调用失败，请检查网络或服务配置。", e);
+        }
+    }
+
+    private void ensureConfigured() {
+        if (!StringUtils.hasText(difyProperties.getApiKey()) || "your-dify-api-key".equals(difyProperties.getApiKey())) {
+            throw new DifyApiException("DIFY_CONFIG_ERROR", "Dify API key 未配置。");
         }
     }
 
@@ -168,14 +197,14 @@ public class DifyClient {
             String event = textValue(node, "event");
             if ("error".equals(event)) {
                 String message = textValue(node, "message");
-                throw new DifyApiException(StringUtils.hasText(message)
+                throw new DifyApiException(classifyDifyError(message), StringUtils.hasText(message)
                         ? "Dify API 调用失败：" + message
                         : "Dify streaming API returned error event");
             }
 
             String streamError = streamError(node);
             if (StringUtils.hasText(streamError)) {
-                throw new DifyApiException("Dify API 调用失败：" + streamError);
+                throw new DifyApiException(classifyDifyError(streamError), "Dify API 调用失败：" + streamError);
             }
 
             updateState(node, state);
@@ -374,6 +403,25 @@ public class DifyClient {
             // Use the generic message below when Dify returns a non-JSON error body.
         }
         return "Dify API 调用失败，请检查 Dify 应用配置。";
+    }
+
+    private String classifyDifyError(String text) {
+        String message = text == null ? "" : text.toLowerCase();
+        if (message.contains("api key") || message.contains("unauthorized") || message.contains("forbidden")) {
+            return "DIFY_AUTH_ERROR";
+        }
+        if (message.contains("model is not configured") || message.contains("metadata_model_config")
+                || message.contains("app unavailable") || message.contains("app configurations")
+                || message.contains("not_workflow_app")) {
+            return "DIFY_CONFIG_ERROR";
+        }
+        if (message.contains("timeout") || message.contains("timed out")) {
+            return "DIFY_TIMEOUT";
+        }
+        if (message.contains("rate limit") || message.contains("too many requests")) {
+            return "DIFY_RATE_LIMIT";
+        }
+        return "DIFY_ERROR";
     }
 
     private static class StreamState {

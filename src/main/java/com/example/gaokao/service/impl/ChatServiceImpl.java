@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.gaokao.client.DifyClient;
 import com.example.gaokao.common.exception.BusinessException;
+import com.example.gaokao.common.exception.DifyApiException;
 import com.example.gaokao.dto.ChatRequest;
 import com.example.gaokao.dto.ChatReference;
 import com.example.gaokao.dto.ChatResponse;
@@ -45,12 +46,12 @@ public class ChatServiceImpl extends ServiceImpl<ChatMessageMapper, ChatMessage>
     public ChatResponse send(ChatRequest request) {
         ChatContext context = validateAndBuildContext(request);
 
-        DifyChatResponse difyResponse = difyClient.chat(context.userId(), context.question(), context.conversationId());
+        DifyChatResponse difyResponse = difyClient.chat(context.userId(), context.difyQuestion(), context.conversationId());
 
         ChatMessage message = new ChatMessage();
         message.setUserId(context.userId());
         message.setConversationId(difyResponse.getConversationId());
-        message.setQuestion(context.question());
+        message.setQuestion(context.originalQuestion());
         message.setAnswer(difyResponse.getAnswer());
         message.setReferencesJson(toReferencesJson(difyResponse.getReferences()));
         message.setMessageSource("DIFY");
@@ -75,7 +76,7 @@ public class ChatServiceImpl extends ServiceImpl<ChatMessageMapper, ChatMessage>
             try {
                 DifyStreamResult streamResult = difyClient.streamChat(
                         context.userId(),
-                        context.question(),
+                        context.difyQuestion(),
                         context.conversationId(),
                         answer -> {
                             fullAnswer.append(answer);
@@ -91,7 +92,7 @@ public class ChatServiceImpl extends ServiceImpl<ChatMessageMapper, ChatMessage>
                 message.setConversationId(StringUtils.hasText(streamResult.getConversationId())
                         ? streamResult.getConversationId()
                         : context.conversationId());
-                message.setQuestion(context.question());
+                message.setQuestion(context.originalQuestion());
                 message.setAnswer(fullAnswer.toString());
                 message.setReferencesJson(toReferencesJson(streamResult.getReferences()));
                 message.setMessageSource("DIFY");
@@ -110,7 +111,10 @@ public class ChatServiceImpl extends ServiceImpl<ChatMessageMapper, ChatMessage>
                     message = "AI 服务暂时不可用，请稍后重试。";
                 }
                 try {
-                    sendEvent(emitter, "error", Map.of("message", message));
+                    String code = e instanceof DifyApiException difyException
+                            ? difyException.getErrorCode()
+                            : "SYSTEM_ERROR";
+                    sendEvent(emitter, "error", Map.of("message", message, "code", code));
                 } finally {
                     emitter.complete();
                 }
@@ -194,7 +198,32 @@ public class ChatServiceImpl extends ServiceImpl<ChatMessageMapper, ChatMessage>
         if (conversationId.length() > 100) {
             throw new BusinessException("当前会话异常，请重新发起对话。");
         }
-        return new ChatContext(userId, request.getQuestion().trim(), conversationId);
+        String originalQuestion = request.getQuestion().trim();
+        return new ChatContext(userId, originalQuestion, enrichQuestion(originalQuestion, request), conversationId);
+    }
+
+    private String enrichQuestion(String question, ChatRequest request) {
+        StringBuilder profile = new StringBuilder();
+        appendProfile(profile, "省份", request.getProvince());
+        appendProfile(profile, "科类", request.getSubjectType());
+        appendProfile(profile, "分数", request.getScore() == null ? null : request.getScore().toString());
+        appendProfile(profile, "位次", request.getRank() == null ? null : request.getRank().toString());
+        appendProfile(profile, "偏好", request.getPreferences());
+        if (profile.length() == 0) {
+            return question;
+        }
+        return """
+                请结合以下考生画像回答，若知识库未命中或信息不足，请先说明缺少依据，不要编造。
+                %s
+
+                用户问题：%s
+                """.formatted(profile, question);
+    }
+
+    private void appendProfile(StringBuilder profile, String label, String value) {
+        if (StringUtils.hasText(value)) {
+            profile.append(label).append("：").append(value.trim()).append('\n');
+        }
     }
 
     private void sendEvent(SseEmitter emitter, String name, Object data) {
@@ -205,6 +234,6 @@ public class ChatServiceImpl extends ServiceImpl<ChatMessageMapper, ChatMessage>
         }
     }
 
-    private record ChatContext(String userId, String question, String conversationId) {
+    private record ChatContext(String userId, String originalQuestion, String difyQuestion, String conversationId) {
     }
 }

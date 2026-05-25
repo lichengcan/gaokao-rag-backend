@@ -21,7 +21,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DifyApiException.class)
     public Result<Void> handleDifyApiException(DifyApiException e) {
         log.error("Dify API call failed", e);
-        return Result.fail(e.getMessage());
+        return Result.fail(toHttpLikeCode(e.getErrorCode()), e.getMessage());
     }
 
     @ExceptionHandler({DataAccessException.class})
@@ -39,5 +39,21 @@ public class GlobalExceptionHandler {
     public Result<Void> handleException(Exception e) {
         log.error("Unexpected error", e);
         return Result.fail("系统繁忙，请稍后重试。");
+    }
+
+    private int toHttpLikeCode(String errorCode) {
+        if ("DIFY_AUTH_ERROR".equals(errorCode)) {
+            return 401;
+        }
+        if ("DIFY_CONFIG_ERROR".equals(errorCode)) {
+            return 422;
+        }
+        if ("DIFY_TIMEOUT".equals(errorCode)) {
+            return 504;
+        }
+        if ("DIFY_RATE_LIMIT".equals(errorCode)) {
+            return 429;
+        }
+        return 503;
     }
 }
