@@ -1,6 +1,7 @@
 package com.example.gaokao.controller;
 
 import com.example.gaokao.common.Result;
+import com.example.gaokao.dto.ChatFeedbackRequest;
 import com.example.gaokao.dto.ChatRequest;
 import com.example.gaokao.dto.ChatResponse;
 import com.example.gaokao.service.ChatService;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -50,6 +52,12 @@ public class ChatController {
     @DeleteMapping("/message/{id}")
     public Result<Void> deleteMessage(@PathVariable Long id) {
         chatService.deleteMessage(id);
+        return Result.success();
+    }
+
+    @PutMapping("/message/{id}/feedback")
+    public Result<Void> feedback(@PathVariable Long id, @RequestBody ChatFeedbackRequest request) {
+        chatService.feedback(id, request);
         return Result.success();
     }
 }

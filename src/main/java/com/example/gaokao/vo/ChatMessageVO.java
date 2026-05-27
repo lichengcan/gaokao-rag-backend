@@ -15,5 +15,7 @@ public class ChatMessageVO {
     private String question;
     private String answer;
     private List<ChatReference> references;
+    private Integer feedbackStatus;
+    private String feedbackComment;
     private LocalDateTime createTime;
 }

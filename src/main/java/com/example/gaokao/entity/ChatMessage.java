@@ -18,6 +18,8 @@ public class ChatMessage {
     private String question;
     private String answer;
     private String referencesJson;
+    private Integer feedbackStatus;
+    private String feedbackComment;
     private String messageSource;
     private Integer status;
     private LocalDateTime createTime;

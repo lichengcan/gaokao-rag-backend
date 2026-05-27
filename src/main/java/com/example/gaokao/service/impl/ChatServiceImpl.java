@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.gaokao.client.DifyClient;
 import com.example.gaokao.common.exception.BusinessException;
 import com.example.gaokao.common.exception.DifyApiException;
+import com.example.gaokao.dto.ChatFeedbackRequest;
 import com.example.gaokao.dto.ChatRequest;
 import com.example.gaokao.dto.ChatReference;
 import com.example.gaokao.dto.ChatResponse;
@@ -157,6 +158,21 @@ public class ChatServiceImpl extends ServiceImpl<ChatMessageMapper, ChatMessage>
             message.setStatus(0);
             updateById(message);
         }
+    }
+
+    @Override
+    public void feedback(Long id, ChatFeedbackRequest request) {
+        ChatMessage message = getById(id);
+        if (message == null || message.getStatus() == null || message.getStatus() == 0) {
+            throw new BusinessException("问答记录不存在或已删除。");
+        }
+        Integer feedbackStatus = request == null ? null : request.getFeedbackStatus();
+        if (feedbackStatus == null || (feedbackStatus != 1 && feedbackStatus != -1)) {
+            throw new BusinessException("请选择有效的反馈类型。");
+        }
+        message.setFeedbackStatus(feedbackStatus);
+        message.setFeedbackComment(request.getFeedbackComment());
+        updateById(message);
     }
 
     private ChatMessageVO toVO(ChatMessage message) {

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -42,6 +43,17 @@ public class AdminServiceImpl implements com.example.gaokao.service.AdminService
                 .filter(id -> !id.isBlank())
                 .distinct()
                 .count();
+        long likedCount = allMessages.stream()
+                .filter(message -> Integer.valueOf(1).equals(message.getFeedbackStatus()))
+                .count();
+        long dislikedCount = allMessages.stream()
+                .filter(message -> Integer.valueOf(-1).equals(message.getFeedbackStatus()))
+                .count();
+        long noReferenceCount = allMessages.stream()
+                .filter(message -> message.getReferencesJson() == null || message.getReferencesJson().isBlank())
+                .count();
+        long feedbackCount = likedCount + dislikedCount;
+        double feedbackRate = total == null || total == 0 ? 0 : feedbackCount * 1.0 / total;
 
         List<StatisticsVO.HotQuestion> hotQuestions = allMessages.stream()
                 .collect(Collectors.groupingBy(ChatMessage::getQuestion, Collectors.counting()))
@@ -56,12 +68,32 @@ public class AdminServiceImpl implements com.example.gaokao.service.AdminService
                         .orderByDesc(ChatMessage::getCreateTime)
                         .last("LIMIT 10"))
                 .stream().map(this::toVO).toList();
+        List<StatisticsVO.FeedbackItem> feedbackItems = allMessages.stream()
+                .filter(message -> Integer.valueOf(-1).equals(message.getFeedbackStatus()))
+                .sorted((left, right) -> right.getUpdateTime().compareTo(left.getUpdateTime()))
+                .limit(10)
+                .map(message -> StatisticsVO.FeedbackItem.builder()
+                        .id(message.getId())
+                        .userId(message.getUserId())
+                        .question(message.getQuestion())
+                        .feedbackComment(message.getFeedbackComment())
+                        .createTime(message.getUpdateTime() == null
+                                ? null
+                                : message.getUpdateTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")))
+                        .build())
+                .toList();
 
         return StatisticsVO.builder()
                 .totalQuestions(total)
                 .todayQuestions(today)
                 .conversationCount(conversationCount)
+                .likedCount(likedCount)
+                .dislikedCount(dislikedCount)
+                .noReferenceCount(noReferenceCount)
+                .unresolvedFeedbackCount(dislikedCount)
+                .feedbackRate(feedbackRate)
                 .hotQuestions(hotQuestions)
+                .feedbackItems(feedbackItems)
                 .recentMessages(recentMessages)
                 .build();
     }

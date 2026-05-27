@@ -1,6 +1,7 @@
 package com.example.gaokao.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.example.gaokao.dto.ChatFeedbackRequest;
 import com.example.gaokao.dto.ChatRequest;
 import com.example.gaokao.dto.ChatResponse;
 import com.example.gaokao.entity.ChatMessage;
@@ -20,4 +21,6 @@ public interface ChatService extends IService<ChatMessage> {
     List<ChatMessageVO> conversation(String conversationId);
 
     void deleteMessage(Long id);
+
+    void feedback(Long id, ChatFeedbackRequest request);
 }
